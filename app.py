@@ -15,14 +15,8 @@ def get_similar_search(sequence):
     
     for i in range(len(parsedSequence)):
         parsedSequence[i] = float(parsedSequence[i])
-    
-    print("Fetching function")
-    t1_start = perf_counter()
+
     resp = parallelComputing(parsedSequence, data, 5)
-    t1_stop = perf_counter()
-    print(resp)
-    # print(jsonify(resp))
-    # print("Elapsed time:", t1_stop - t1_start)
     return jsonify(resp)
 
 @app.route('/')

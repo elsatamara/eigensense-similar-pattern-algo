@@ -9,7 +9,8 @@ import statistics
 import datetime
 import functools
 import multiprocess
-import time, datetime
+import time
+import distanceMatrix
 
 class ReversePriorityQueue(PriorityQueue):
 
@@ -22,24 +23,7 @@ class ReversePriorityQueue(PriorityQueue):
         newtup = tup[0] * -1, tup[1]
         return newtup
 
-def tsCandidate(data, slidingWindow, interval, D_norm):
-   
-    len_Data = len(data)
-
-    for i in range(0, len_Data-slidingWindow, interval):
-        DD = data[i:i + slidingWindow]       
-        DD_mean = statistics.mean(DD)
-        DD_std = statistics.stdev(DD)
-        if DD_std == 0:
-            DD_norm = (DD - DD_mean)
-        else:
-            DD_norm = (DD - DD_mean)/DD_std
-        D_norm.append([i,DD_norm])
-        
-    return D_norm
-
 def DTWComputation(ts_query, ts_candidate, d_cb, Res, k, idx):
-
     ''' Return the updated priority queue that contains the most similar subsequences
 
         Parameters
@@ -56,8 +40,7 @@ def DTWComputation(ts_query, ts_candidate, d_cb, Res, k, idx):
         k : int
             Number of data sequence that are most similar to ts_query
         idx : int
-            Starting index of the subsequence in the database
-
+            Index of the subsequence in the database
         
 
         Returns
@@ -67,21 +50,25 @@ def DTWComputation(ts_query, ts_candidate, d_cb, Res, k, idx):
             each entry = <distance, sequence>
     '''
         
+        
     
-    d_lbs_exact, path = fastdtw(ts_query, ts_candidate)
     
-    d_lbs_exact = d_lbs_exact*len(ts_query)/len(ts_candidate)
- 
-    if Res.qsize() < k:
-        Res.put((d_lbs_exact, idx))
-
-    if Res.qsize() == k:
+    d_lbs_exact, path, EA = distanceMatrix.fastdtw(ts_query, ts_candidate, d_cb)   
+    
+    if EA == False:
+        if Res.qsize() < k:
+            Res.put((d_lbs_exact, idx))
+            
+    
+        if Res.qsize() == k:
              
-        if d_lbs_exact > d_cb: return Res
-        else:
-            Res.get()
-        Res.put((d_lbs_exact, idx))
+            if d_lbs_exact > d_cb: return Res
+            else:
+                Res.get()
+            Res.put((d_lbs_exact, idx))
 
+    
+     
     return Res
 
 def LB_Yi(ts_candidate, ts_query, d_cb):
@@ -158,6 +145,7 @@ def LB_Yi(ts_candidate, ts_query, d_cb):
     
     return d_lb, tmp
                 
+                
 def kNNsearch_LB_Yi(ts_query, D, k, numData, method = 'EA', d_cb = float('inf')):
     ''' Return the k sequences that are most similar to 
                     the sample sequence measured by DTW distance
@@ -177,7 +165,7 @@ def kNNsearch_LB_Yi(ts_query, D, k, numData, method = 'EA', d_cb = float('inf'))
             'EA': using early abondon method and get top k most similar subsequences
             'Complete': compute the DTW for all subsequences and output top k most similar subsequences
         d_cb: int
-            Tolerace for the distance 
+            Tolerance for the distance  
 
         Returns
         -------
@@ -266,7 +254,7 @@ def TopK(allSubsequence, D, k):
         for k in range(len(ts_candidate)):
             data.append([timestamp[k], ts_candidate[k]])
     
-        res.append([dis_score, data])
+        res.append([float(dis_score), data])
     return res
 
 def parallelComputing(ts_query, D, k, method = 'EA', d_cb = float('inf')):
@@ -309,6 +297,7 @@ def parallelComputing(ts_query, D, k, method = 'EA', d_cb = float('inf')):
     
     allSubsequence = []
     topKSubsequence = []
+    allSubsequenceidx = []
     
     numData = int(len(D)/10)
     p = int(len(D)/numData)
@@ -326,17 +315,19 @@ def parallelComputing(ts_query, D, k, method = 'EA', d_cb = float('inf')):
     end = time.time()
     searchTime = end - start
     
+    
+    
     for i in range(len(res)):
         tmp = res[i]
         while not tmp.empty():
             x = tmp.get()
             allSubsequence.append([x[0], x[1]])
+            allSubsequenceidx.append([float(x[0]), int(D['Starting Idx'].iloc[x[1]])])
+
     allSubsequence = sorted(allSubsequence,key = lambda l:l[1], reverse=True) 
+    allSubsequenceidx = sorted(allSubsequenceidx,key = lambda l:l[1], reverse=True) 
+
     topKSubsequence = TopK(allSubsequence, D, k)
     
     
-    
-    
-    
-    
-    return topKSubsequence, allSubsequence, searchTime
+    return topKSubsequence, allSubsequenceidx, searchTime
