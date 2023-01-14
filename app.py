@@ -1,15 +1,16 @@
-from flask import Flask, jsonify;
+from flask import Flask, jsonify, request;
 from handler import *;
 import pandas as pd
 from time import perf_counter;
+import json
 
 app = Flask(__name__)
 
 data = pd.read_csv('./data/ECG_SubsequenceWTimeStamp.csv', nrows=1000)
 
-@app.route('/similar-search/<sequence>')
-def get_similar_search(sequence):
-    parsedSequence = str(sequence).split(",")
+@app.route('/similar-search', methods=['POST'])
+def get_similar_search():
+    parsedSequence = json.loads(request.data.decode('ASCII')).get('data').split(',')
     parsedSequence.pop(0)
     parsedSequence[len(parsedSequence)-1] = parsedSequence[len(parsedSequence)-1][:-1]
     
@@ -17,6 +18,7 @@ def get_similar_search(sequence):
         parsedSequence[i] = float(parsedSequence[i])
 
     resp = parallelComputing(parsedSequence, data, 5)
+    print(resp)
     return jsonify(resp)
 
 @app.route('/')
